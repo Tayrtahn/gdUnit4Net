@@ -152,25 +152,35 @@ public sealed class SceneRunnerCSharpSceneTest
     [TestCase(Timeout = 2000)]
     public async Task SimulateFrames()
     {
-        var box1 = sceneRunner.GetProperty<ColorRect>("Box1")!;
+        // cap the frame rate, the color cycle runs on timers, so the frames must take a known minimum time
+        var maxFps = Engine.MaxFps;
+        Engine.MaxFps = 100;
+        try
+        {
+            var box1 = sceneRunner.GetProperty<ColorRect>("Box1")!;
 
-        // initial is white
-        AssertObject(box1.Color).IsEqual(Colors.White);
+            // initial is white
+            AssertObject(box1.Color).IsEqual(Colors.White);
 
-        // start color cycle by invoke the function 'StartColorCycle'
-        sceneRunner.Invoke("StartColorCycle");
+            // start color cycle by invoke the function 'StartColorCycle'
+            sceneRunner.Invoke("StartColorCycle");
 
-        // we wait for 10 frames
-        await sceneRunner.SimulateFrames(10);
+            // we wait for 10 frames
+            await sceneRunner.SimulateFrames(10);
 
-        // after 10 frame is still white
-        AssertObject(box1.Color).IsEqual(Colors.White);
+            // after 10 frame is still white
+            AssertObject(box1.Color).IsEqual(Colors.White);
 
-        // we wait 90 more frames
-        await sceneRunner.SimulateFrames(90);
+            // we wait 90 more frames
+            await sceneRunner.SimulateFrames(90);
 
-        // after 100 frames the box one should be changed the color
-        AssertObject(box1.Color).IsNotEqual(Colors.White);
+            // after 100 frames the box one should be changed the color
+            AssertObject(box1.Color).IsNotEqual(Colors.White);
+        }
+        finally
+        {
+            Engine.MaxFps = maxFps;
+        }
     }
 
     [TestCase(Timeout = 1000)]
@@ -334,7 +344,7 @@ public sealed class SceneRunnerCSharpSceneTest
             .ContinueWith(result
                 => result.Result?
                     .HasMessage("Assertion: Timed out after 150ms.")
-                    .HasFileLineNumber(333));
+                    .HasFileLineNumber(343));
     }
 
     [TestCase]
