@@ -34,6 +34,12 @@ internal sealed class GodotRuntimeTestRunner : BaseTestRunner
     /// </summary>
     internal const int STD_ERR_TAIL_LINES = 30;
 
+    /// <summary>
+    ///     Maximum time in milliseconds to wait for `godot --version` to exit when checking the C# support of the Godot binary.
+    ///     It covers a slow first start of Godot, for example on a fresh CI runner.
+    /// </summary>
+    internal const int VERIFY_GODOT_TIMEOUT = 5000;
+
     private static readonly ITestEngineLogger Logger = LoggerFactory.GetLogger<GodotRuntimeTestRunner>();
     private readonly string pipeName;
 
@@ -241,13 +247,26 @@ internal sealed class GodotRuntimeTestRunner : BaseTestRunner
         return $" ({name})";
     }
 
+    /// <summary>
+    ///     Checks whether a Godot version string, as printed by `godot --version`, belongs to a Godot build with C# support.
+    /// </summary>
+    /// <remarks>
+    ///     Godot builds with the C# module add `mono` to the version, e.g. `4.6.stable.mono.official.89cea1439`.
+    /// </remarks>
+    /// <param name="version">The output of `godot --version`.</param>
+    /// <returns>True when the version belongs to a Godot build with C# support.</returns>
+    internal static bool IsGodotCSharpBuild(string version)
+        => version
+            .Split(['.', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains("mono", StringComparer.OrdinalIgnoreCase);
+
     internal bool VerifyGodotCSharpSupport(string godotBinary)
     {
         using var godotProcess = new Process();
+        var started = false;
         try
         {
-            // recompile the project
-            var processStartInfo = new ProcessStartInfo($"{godotBinary}", "--help")
+            godotProcess.StartInfo = new ProcessStartInfo(godotBinary, "--version")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = false,
@@ -258,37 +277,38 @@ internal sealed class GodotRuntimeTestRunner : BaseTestRunner
                 WorkingDirectory = Environment.CurrentDirectory
             };
 
-            var outputComplete = new ManualResetEventSlim(false);
-            var hasCSharpOptions = false;
-            godotProcess.StartInfo = processStartInfo;
-            godotProcess.EnableRaisingEvents = true;
-            godotProcess.OutputDataReceived += (_, args) =>
-            {
-                if (args.Data == null)
-                    outputComplete.Set();
-                var message = args.Data?.Trim();
-                if (!string.IsNullOrEmpty(message))
-                    hasCSharpOptions = hasCSharpOptions || message.Contains("--build-solutions", StringComparison.OrdinalIgnoreCase);
-            };
-
-            if (!godotProcess.Start())
+            started = godotProcess.Start();
+            if (!started)
             {
                 Logger.LogError("Checking Godot C# supports fails on process start, exit ..");
                 return false;
             }
 
-            godotProcess.BeginOutputReadLine();
-            _ = godotProcess.WaitForExit(500);
-            _ = outputComplete.Wait(2000);
+            var output = godotProcess.StandardOutput.ReadToEndAsync();
 
-            if (!hasCSharpOptions)
+            // the exit code is only available after the process has exited, a slow first Godot start needs more time
+            if (!godotProcess.WaitForExit(VERIFY_GODOT_TIMEOUT))
+            {
+                Logger.LogError($"Checking Godot C# support fails, '{godotBinary} --version' did not exit within {VERIFY_GODOT_TIMEOUT}ms.");
+                return false;
+            }
+
+            var version = output.Wait(2000) ? output.Result.Trim() : string.Empty;
+            if (godotProcess.ExitCode != 0)
+            {
+                Logger.LogError($"Checking Godot C# support fails, '{godotBinary} --version' ends with exit code: {godotProcess.ExitCode}");
+                return false;
+            }
+
+            if (!IsGodotCSharpBuild(version))
             {
                 Logger.LogWarning(
                     $"""
 
-                     ╔═════════════════════ NO Godot C# SUPPORT NOT DETECTED ═══════════════════════════════╗
+                     ╔═════════════════════ Godot C# SUPPORT NOT DETECTED ══════════════════════════════════╗
 
                        The Godot binary at '{godotBinary}' does not appear to support C# development.
+                       It reports the version '{version}', a Godot build with C# support reports a '.mono.' version.
 
                        SOLUTION:
                        Please ensure you're using a Godot build with C# support:
@@ -318,7 +338,7 @@ internal sealed class GodotRuntimeTestRunner : BaseTestRunner
                 return false;
             }
 
-            return godotProcess.ExitCode == 0;
+            return true;
         }
 #pragma warning disable CA1031
         catch (Exception e)
@@ -329,7 +349,12 @@ internal sealed class GodotRuntimeTestRunner : BaseTestRunner
         }
         finally
         {
-            CloseProcess(godotProcess);
+            // disposing does not end the process, stop it when it is still running, e.g. after a timeout
+            if (started && !godotProcess.HasExited)
+            {
+                godotProcess.Kill(true);
+                _ = godotProcess.WaitForExit(1000);
+            }
         }
     }
 
