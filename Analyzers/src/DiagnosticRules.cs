@@ -28,6 +28,11 @@ internal static class DiagnosticRules
         public const string DATA_POINT_WITH_MULTIPLE_TEST_CASE = "GdUnit0201";
 
         /// <summary>
+        ///     Rule ID for detecting multiple TestCase attributes with the same TestName on the same method.
+        /// </summary>
+        public const string TESTCASE_NAMES_MUST_BE_UNIQUE_ID = "GdUnit0202";
+
+        /// <summary>
         ///     Rule ID for detecting when a test class using Godot functionality needs the RequireGodotRuntime attribute.
         /// </summary>
         public const string REQUIRES_GODOT_RUNTIME_ON_CLASS_ID = "GdUnit0500";
@@ -108,6 +113,22 @@ internal static class DiagnosticRules
             Add `[RequireGodotRuntime]` to the test class level.
             """,
             $"{HELP_LINK}/{RuleIds.REQUIRES_GODOT_RUNTIME_ON_CLASS_ID}.md",
+            WellKnownDiagnosticTags.Compiler);
+    }
+
+    internal static class TestCase
+    {
+        public static readonly DiagnosticDescriptor TestCaseNamesMustBeUnique = new(
+            RuleIds.TESTCASE_NAMES_MUST_BE_UNIQUE_ID,
+            "Test case names must be unique",
+            "Test method '{0}' has multiple TestCase attributes with the same TestName",
+            Categories.ATTRIBUTE_USAGE,
+            DiagnosticSeverity.Error,
+            true,
+            """
+            Multiple TestCase attributes on a test method cannot specify the same TestName. Duplicate test names will skip the tests and cause inconclusive results.
+            """,
+            $"{HELP_LINK}/{RuleIds.TESTCASE_NAMES_MUST_BE_UNIQUE_ID}.md",
             WellKnownDiagnosticTags.Compiler);
     }
 
