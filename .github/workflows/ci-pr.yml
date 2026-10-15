@@ -22,7 +22,7 @@ permissions:
 jobs:
 
   setup-dotnet:
-    name: "🔧 Setup .NET8"
+    name: "🔧 Setup .NET"
     runs-on: 'ubuntu-24.04'
     timeout-minutes: 1
     steps:
