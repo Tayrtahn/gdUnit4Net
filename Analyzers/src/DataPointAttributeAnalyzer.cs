@@ -34,23 +34,30 @@ public class DataPointAttributeAnalyzer : DiagnosticAnalyzer
             throw new ArgumentNullException(nameof(context));
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeMethodSymbol, SymbolKind.Method);
+
+        context.RegisterCompilationStartAction(ctx =>
+        {
+            var dataPointAttr = ctx.Compilation.GetTypeByMetadataName("GdUnit4.DataPointAttribute");
+            var testCaseAttr = ctx.Compilation.GetTypeByMetadataName("GdUnit4.TestCaseAttribute");
+
+            // Do nothing if this assembly doesn't have access to our attributes.
+            if (dataPointAttr is null || testCaseAttr is null)
+                return;
+
+            ctx.RegisterSymbolAction(symbolContext => AnalyzeMethodSymbol(symbolContext, dataPointAttr, testCaseAttr), SymbolKind.Method);
+        });
+
     }
 
     /// <summary>
     ///     Analyzes a method symbol to verify proper usage of DataPoint and TestCase attributes.
     /// </summary>
     /// <param name="context">The symbol analysis context containing the method to analyze.</param>
-    private static void AnalyzeMethodSymbol(SymbolAnalysisContext context)
+    /// <param name="dataPointAttr">The INamedTypeSymbol representing DataPointAttribute.</param>
+    /// <param name="testCaseAttr">The INamedTypeSymbol representing TestCaseAttribute.</param>
+    private static void AnalyzeMethodSymbol(SymbolAnalysisContext context, INamedTypeSymbol dataPointAttr, INamedTypeSymbol testCaseAttr)
     {
         var methodSymbol = (IMethodSymbol)context.Symbol;
-
-        // Get full attribute names
-        var dataPointAttr = context.Compilation.GetTypeByMetadataName("GdUnit4.DataPointAttribute");
-        var testCaseAttr = context.Compilation.GetTypeByMetadataName("GdUnit4.TestCaseAttribute");
-
-        if (dataPointAttr == null || testCaseAttr == null)
-            return;
 
         // Check for DataPoint attribute
         var hasDataPoint = methodSymbol.GetAttributes()
