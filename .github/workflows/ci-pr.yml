@@ -202,17 +202,19 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 10
+      # The only definition of the Godot test matrix, the report publishing follows the uploaded test artifacts
       matrix:
         gdunit-version: ['v6.2.2']
         godot-version: ['4.6', '4.6.3', '4.7.1']
         godot-status: ['stable']
-        dotnet-version: ['net9.0']
+        dotnet-version: ['net10.0']
         include:
-          # Latest
+          # Latest, also tested on Windows
           - gdunit-version: 'latest'
+            windows: true
             godot-version: '4.7.2'
             godot-status: 'stable'
-            dotnet-version: 'net9.0'
+            dotnet-version: 'net10.0'
 
 
     name: "🧪 Test: API on Godot-v${{ matrix.godot-version }}-${{ matrix.godot-status }}"
@@ -222,6 +224,7 @@ jobs:
       gdunit-version: ${{ matrix.gdunit-version }}
       godot-version: ${{ matrix.godot-version }}
       godot-status: ${{ matrix.godot-status }}
+      windows: ${{ matrix.windows == true }}
 
 
   finalize:
