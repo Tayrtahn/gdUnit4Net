@@ -19,9 +19,9 @@
 <table align="center">
   <thead>
     <tr>
-      <th>gdUnit4.api Version</th>
-      <th>gdUnit4.test.adapter Version</th>
-      <th>gdUnit4.analyzers Version</th>
+      <th>api Version</th>
+      <th>test.adapter Version</th>
+      <th>analyzers Version</th>
       <th>.NET Version</th>
       <th>Minimum .NET SDK</th>
       <th>Godot minimal required/compatible Version</th>
